@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>GIF Frame Parser</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
+    <style>
+      html, body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+      }
+
+      body {
+        padding: 1em 0;
+      }
+
+      th {
+        text-align: left;
+      }
+
+      #separator, .duration-list {
+        font-family: Consolas, Inconsolata, monospace;
+      }
+
+      #row-template {
+        display: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <form id="format-form" class="form-inline">
+        <div class="form-group">
+          <label for="format">Format</label>
+          <select id="format" class="form-control format-control">
+            <option value="ms">Milliseconds</option>
+            <option value="s">Seconds</option>
+            <option value="rs">Reciprocal of Seconds</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="separator">Separator</label>
+          <input type="text" id="separator" class="form-control format-control" placeholder=", " value=", ">
+        </div>
+      </form>
+      <hr>
+      <form>
+        Drop or Select File(s).
+        <input type="file" id="input" class="form-control">
+      </form>
+      <hr>
+      <table class="table">
+        <thead>
+          <tr>
+            <td colspan="2">GIF</td>
+            <td>Frames</td>
+            <td>Frames' Duration</td>
+            <td></td>
+          </tr>
+        </thead>
+        <tbody id="table-body">
+          <tr id="row-template">
+            <!--
+            <td><img src="{thumbnailSrc}" class="thumbnail"></td>
+            -->
+            <th colspan="2">{fileName}</th>
+            <td>{numFrames}</td>
+            <td><input type="text" class="form-control duration-list" value="{durationList}" readonly onclick="this.select()"></td>
+            <td><button type="button" class="close" onclick="$(this).parents('tr').remove()">&times;</button></td>
+          </tr>
+        </tbody>
+      </table>
+      <hr>
+      <div class="text-muted">
+        Many thanks to
+        <a href="https://github.com/rfrench/gify" target="_blank">gify</a>,
+        <a href="https://github.com/jDataView/jDataView" target="_blank">jDataView</a>,
+        <a href="https://getbootstrap.com/" target="_blank">Bootstrap</a>
+        and
+        <a href="https://jquery.com/" target="_blank">jQuery</a>.
+      </div>
+    </div>
+
+    <script src="gify.min.js"></script>
+    <script src="jdataview.js"></script>
+    <script src="https://code.jquery.com/jquery-3.1.1.slim.min.js" integrity="sha384-A7FZj7v+d/sdmMqp/nOQwliLvUsJfDHW+k9Omg/a/EheAdgtzNs3hpfag6Ed950n" crossorigin="anonymous"></script>
+    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
+    <script>
+      function escapeHtml(str) {
+        return str.replace(/[<>&"']/g, symbol => ({
+            '<': '&lt;',
+            '>': '&gt;',
+            '&': '&amp;',
+            '"': '&quot;',
+            "'": '&apos;',
+          }[symbol]
+        ));
+      }
+
+      function formatDuration(duration) {
+        const type = $('#format').val();
+        switch (type) {
+          case 's':
+            return duration / 1000;
+
+          case 'rs':
+            return 1000 / duration;
+
+          case 'ms':
+          default:
+            return duration;
+        }
+      }
+
+      function formatList(list) {
+        return list.map(formatDuration).join($('#separator').val());
+      }
+
+      function generateContext(info) {
+        const {gifInfo, file} = info;
+
+        const context = {
+          fileName: file.name,
+          numFrames: gifInfo.valid ? gifInfo.images.length : 'N/A',
+        };
+
+        if (!gifInfo.valid) {
+          context.durationList = 'Not a valid GIF'
+        } else if (!gifInfo.animated) {
+          context.durationList = 'Not an animated GIF';
+        } else {
+          context.durationList = formatList(gifInfo.images.map(image => image.delay));
+        }
+
+        return context;
+      }
+
+      function generateRowHtml(context) {
+        return $('#row-template').html()
+          .replace(/\{(.*?)\}/g, (x, target) => {
+            let str = context[target];
+            if (str === undefined) str = '';
+            if (typeof str !== 'string') str = str.toString();
+            return escapeHtml(str);
+          });
+      }
+
+
+      function processFiles(files) {
+        function processFile(file) {
+          const reader = new FileReader();
+
+          reader.onload = event => {
+            const info = {
+              file,
+              gifInfo: gify.getInfo(reader.result),
+            }
+            const context = generateContext(info);
+            const $row =
+              $('<tr>')
+              .html(generateRowHtml(context))
+              .removeAttr('id')
+              .addClass('item-row')
+              .data('info', info)
+              .appendTo($('#table-body'));
+          };
+
+          reader.readAsArrayBuffer(file);
+        }
+
+        files.forEach(processFile);
+      }
+
+
+      function handleDragOver(e) {
+        e.stopPropagation();
+        e.preventDefault();
+        e.originalEvent.dataTransfer.dropEffect = 'copy';
+      }
+
+      function handleDrop(e) {
+        if (e.target.id === 'input') return;
+        e.stopPropagation();
+        e.preventDefault();
+        processFiles(Array.from(e.originalEvent.dataTransfer.files || []));
+      }
+
+      function handleFileSelect(e) {
+        e.stopPropagation();
+        processFiles(Array.from(e.target.files || []));
+      }
+
+      function handleFormatChange() {
+        $('.item-row').each((i, e) => {
+          const $e = $(e);
+          $e.html(generateRowHtml(generateContext($e.data('info'))));
+        })
+      }
+
+
+      (() => {
+        $('#input').on('change', handleFileSelect);
+        $('body').on('dragover', handleDragOver);
+        $('body').on('drop', handleDrop);
+        $('.format-control').on('change', handleFormatChange);
+        $('input.format-control').on('keyup', handleFormatChange);
+      })();
+    </script>
+  </body>
+</html>
