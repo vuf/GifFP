@@ -90,13 +90,12 @@
     <script>
       function escapeHtml(str) {
         return str.replace(/[<>&"']/g, symbol => ({
-            '<': '&lt;',
-            '>': '&gt;',
-            '&': '&amp;',
-            '"': '&quot;',
-            "'": '&apos;',
-          }[symbol]
-        ));
+          '<': '&lt;',
+          '>': '&gt;',
+          '&': '&amp;',
+          '"': '&quot;',
+          "'": '&apos;',
+        }[symbol]));
       }
 
       function formatDuration(duration) {
