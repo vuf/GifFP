@@ -190,6 +190,7 @@
       function handleFileSelect(e) {
         e.stopPropagation();
         processFiles(Array.from(e.target.files || []));
+        $(e.target).val('');
       }
 
       function handleFormatChange() {
